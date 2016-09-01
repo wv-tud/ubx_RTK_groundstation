@@ -1,3 +1,12 @@
+/*
+[Termios reference:                http://man7.org/linux/man-pages/man3/termios.3.html]
+[File handling reference:          http://www.gdsw.at/languages/c/programming-bbrown/c_075.htm]
+[RTCM reference:                   http://www.rtcm.org/overview.php#Standards]
+[RTCM 10403.2 reference:           https://www.u-blox.com/sites/default/files/NEO-M8P_DataSheet_(UBX-15016656).pdf]
+[RTCM Structure reference:         https://github.com/wv-tud/ubx_RTK_groundstation/blob/master/087_rubinov_collier_fuller_seager.pdf]
+[RTCM message content reference:   https://github.com/tomojitakasu/RTKLIB/blob/master/src/rtcm3.c]
+*/
+
 #define READ_PREAMBLE 0
 #define READ_RESERVED 1
 #define READ_LENGTH   2
@@ -19,7 +28,6 @@
 int set_interface_attribs(int fd, int speed)
 {
 	struct termios tty;
-
 	if (tcgetattr(fd, &tty) < 0) {
 		printf("Error from tcgetattr: %s\n", strerror(errno));
 		return -1;
