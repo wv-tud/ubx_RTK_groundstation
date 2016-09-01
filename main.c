@@ -71,8 +71,13 @@ void set_mincount(int fd, int mcount)
 int main()
 {
 	// Initialize variables
-	int fd, checksumCounter, byteCounter, len, len1, raw_counter;
-	char raw_msg[1024];
+	int fd;
+	int len = 0;
+	int len1 = 0;
+	int raw_counter = 0;
+	int checksumCounter = 0;
+	int byteCounter = 0;
+	unsigned char raw_msg[1024], message[100];
 	// Set GPS port
 	char *portname = GPS_PORT;
 	// Open serial port
@@ -110,29 +115,23 @@ int main()
 					status = READ_RESERVED;
 					raw_counter = 0;
 					raw_msg[raw_counter] = buf[0];
-					raw_counter++;
 					checksumCounter = 0;
 					byteCounter = 0;
 				}
 				break;
 			case READ_RESERVED:
 				raw_msg[raw_counter] = buf[0];
-				raw_counter++;
 				len1 = ((int) buf[0])  & 0x00000011;
 				status = READ_LENGTH;
 				break;
 			case READ_LENGTH:
 				raw_msg[raw_counter] = buf[0];
-				raw_counter++;
 				len = (len1 << 8) + ((int) buf[0]) ;
 				if(len==19) printf("\n");
-				char message[100];
-				char *msgptr = message;
 				status = READ_MESSAGE;
 				break;
 			case READ_MESSAGE:
 				raw_msg[raw_counter] = buf[0];
-				raw_counter++;
 				// read
 				message[byteCounter] = buf[0];
 				if (byteCounter == (len - 1))
@@ -144,7 +143,6 @@ int main()
 				break;
 			case READ_CHECKSUM:
 				raw_msg[raw_counter] = buf[0];
-				raw_counter++;
 				checksumCounter++;
 				if(checksumCounter == 3)
 				{
@@ -165,7 +163,8 @@ int main()
 					}
 					printf("\nRAW:\n");
 					unsigned char* raw_ptr = raw_msg;
-					for(int i = 0; i < raw_counter; i++)
+					int i;
+					for(i = 0; i <= raw_counter; i++)
 					{
 						printf(" 0x%x", *raw_ptr);
 						raw_ptr++;
@@ -174,6 +173,7 @@ int main()
 				}
 				break;
 			}
+			raw_counter++;
 		} else if (rdlen < 0) {
 			printf("Error from read: %d: %s\n", rdlen, strerror(errno));
 		}
