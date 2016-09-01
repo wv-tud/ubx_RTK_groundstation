@@ -4,6 +4,10 @@
 #define READ_MESSAGE  3
 #define READ_CHECKSUM 4
 
+#ifndef GPS_PORT
+#define GPS_PORT "/dev/ttyUSB0"
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -11,13 +15,6 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-
-int checksumCounter;
-int byteCounter;
-int len;
-int len1;
-int raw_counter;
-char raw_msg[1024];
 
 int set_interface_attribs(int fd, int speed)
 {
@@ -73,26 +70,30 @@ void set_mincount(int fd, int mcount)
 
 int main()
 {
-	char *portname = "/dev/ttyUSB0";
-	int fd;
-	int wlen;
-
+	// Initialize variables
+	int fd, checksumCounter, byteCounter, len, len1, raw_counter;
+	char raw_msg[1024];
+	// Set GPS port
+	char *portname = GPS_PORT;
+	// Open serial port
 	fd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
 	if (fd < 0) {
 		printf("Error opening %s: %s\n", portname, strerror(errno));
 		return -1;
 	}
-	/*baudrate 115200, 8 bits, no parity, 1 stop bit */
+	/*baudrate 9600, 8 bits, no parity, 1 stop bit */
 	set_interface_attribs(fd, B9600);
 	//set_mincount(fd, 0);
 	/* set to pure timed read */
 
-	/* simple output
-    wlen = write(fd, "Hello!\n", 7);
+	/* simple output */
+	/*
+    int wlen = write(fd, "Hello!\n", 7);
     if (wlen != 7) {
         printf("Error from write: %d, %d\n", wlen, errno);
     }
-    tcdrain(fd); delay for output */
+    tcdrain(fd); delay for output
+    */
 
 
 	/* simple noncanonical input */
@@ -110,12 +111,8 @@ int main()
 					raw_counter = 0;
 					raw_msg[raw_counter] = buf[0];
 					raw_counter++;
-					//printf("PREAMBLE read\n");
 					checksumCounter = 0;
 					byteCounter = 0;
-				}
-				else{
-					//printf("0x%x - %i\n", buf[0], (int) buf[0]);
 				}
 				break;
 			case READ_RESERVED:
@@ -123,7 +120,6 @@ int main()
 				raw_counter++;
 				len1 = ((int) buf[0])  & 0x00000011;
 				status = READ_LENGTH;
-				//printf("RESERVED read\n");
 				break;
 			case READ_LENGTH:
 				raw_msg[raw_counter] = buf[0];
@@ -133,7 +129,6 @@ int main()
 				char message[100];
 				char *msgptr = message;
 				status = READ_MESSAGE;
-				//printf("Length read: %i\n", len);
 				break;
 			case READ_MESSAGE:
 				raw_msg[raw_counter] = buf[0];
@@ -179,24 +174,9 @@ int main()
 				}
 				break;
 			}
-/*
-			//#ifdef DISPLAY_STRING
-			buf[rdlen] = 0;
-			printf("Read %d: \"%s\"\n", rdlen, buf);
-			//#else  display hex
-			unsigned char   *p;
-			printf("Read %d:", rdlen);
-			for (p = buf; rdlen-- > 0; p++)
-				printf(" 0x%x", *p);
-			printf("\n");
-			//#endif
-			 */
 		} else if (rdlen < 0) {
 			printf("Error from read: %d: %s\n", rdlen, strerror(errno));
 		}
 		/* repeat read to get full message */
 	} while (1);
 }
-
-//int readBits(*char, start, len){
-//}
