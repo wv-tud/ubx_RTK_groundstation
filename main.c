@@ -67,7 +67,6 @@ void set_mincount(int fd, int mcount)
 		printf("Error tcsetattr: %s\n", strerror(errno));
 }
 
-
 int main()
 {
 	// Initialize variables
@@ -98,7 +97,7 @@ int main()
         printf("Error from write: %d, %d\n", wlen, errno);
     }
     tcdrain(fd); delay for output
-    */
+	 */
 
 
 	/* simple noncanonical input */
@@ -154,19 +153,105 @@ int main()
 					int msg1 = *b;
 					b++;
 					int msg2 = *b;
-					int RTK_msgtype= (msg1 << 4) + (msg2 >> 4);
+					int RTK_msgtype = (msg1 << 4) + (msg2 >> 4);
 					printf ("RTKmsgType: %i\n", RTK_msgtype);
-					unsigned char   *p;
-					for (p = message; byteCounter> 0;byteCounter--, p++)
-					{
-						printf(" 0x%x", *p);
+
+					// Printing useful messages from RTK1005 msg.
+					unsigned char *p;
+					if (RTK_msgtype == 1005){
+						p = message;
+						int MsgId = 0;
+						int StaId = 0;
+						int ItRef = 0;
+						long long Xpos  = 0;
+						long long Ypos  = 0;
+						long long Zpos  = 0;
+						for (int i=1; i<=19; i++, p++){
+							switch (i){
+							case 1:{
+								MsgId = ((int) *p)<<4;
+								break;
+							}
+							case 2:{
+								MsgId += ((int) *p)>>4;
+								StaId =  ((int) *p)<<4;
+								break;
+							}
+							case 3:{
+								StaId += ((int) *p)>>4;
+								break;
+							}
+							case 4:{
+								ItRef = ((int) *p)>>2;
+								break;
+							}
+							case 5: {
+								Xpos = ((long long) (*p & 0x00111111))<<32;
+								break;
+							}
+							case 6:
+								Xpos += ((long long) *p)<<24;
+								break;
+							case 7:
+								Xpos += ((long long)*p)<<16;
+								break;
+							case 8:
+								Xpos += ((long long)*p)<<8;
+								break;
+							case 9:
+								Xpos += ((long long)*p);
+								Xpos = Xpos*0.0001;
+								break;
+							case 10:{
+								Ypos = ((long long) (*p & 0x00111111))<<32;
+								break;
+							}
+							case 11:
+								Ypos += ((long long)*p)<<24;
+								break;
+							case 12:
+								Ypos += ((long long)*p)<<16;
+								break;
+							case 13:
+								Ypos += ((long long)*p)<<8;
+								break;
+							case 14:
+								Ypos += ((long long)*p);
+								Ypos = Ypos*0.0001;
+								break;
+							case 15:{
+								Zpos = ((long long) (*p & 0x00111111))<<32;
+								break;
+							}
+							case 16:
+								Zpos += ((long long)*p)<<24;
+								break;
+							case 17:
+								Zpos += ((long long)*p)<<16;
+								break;
+							case 18:
+								Zpos += ((long long)*p)<<8;
+								break;
+							case 19:
+								Zpos += ((long long)*p);
+								Zpos = Zpos*0.0001;
+								break;
+							}
+						}
+						printf("MsgId: %i \n", MsgId); printf("StaId: %i \n", StaId); printf("ItRef: %i \n", ItRef);
+						printf("Xpos: %0.2f \n", (double)Xpos); printf("Ypos: %0.2f \n", (double)Ypos); printf("Zpos: %0.2f \n", (double)Zpos);
 					}
-					printf("\nRAW:\n");
+					else{
+						for (p = message; byteCounter> 0;byteCounter--, p++){
+							//printf(" 0x%x", *p);
+						}
+					}
+					//printf("\nRAW:\n");
 					unsigned char* raw_ptr = raw_msg;
 					int i;
 					for(i = 0; i <= rawCounter; i++)
 					{
-						printf(" 0x%x", *raw_ptr);
+						//printf(" 0x%x", *raw_ptr);
 						raw_ptr++;
 					}
 					printf("\n");
