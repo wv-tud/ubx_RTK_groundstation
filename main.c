@@ -6,6 +6,7 @@
 [RTCM Structure reference:         https://github.com/wv-tud/ubx_RTK_groundstation/blob/master/087_rubinov_collier_fuller_seager.pdf]
 [RTCM message content reference:   https://github.com/tomojitakasu/RTKLIB/blob/master/src/rtcm3.c]
 [Ivybus reference:                 https://github.com/paparazzi/paparazzi/blob/a99dfbd5e8ab94f6e227b0e8daca1cf7677b088e/sw/ground_segment/misc/sbp2ivy.c]
+[1005 reference:                   https://github.com/jcmb/RTCM3/blob/master/DEFS/1005.RTCM3]
 */
 
 #define READ_PREAMBLE 0
