@@ -173,10 +173,16 @@ int main()
 						int MsgId = 0;
 						int StaId = 0;
 						int ItRef = 0;
-						long long Xpos  = 0;
-						long long Ypos  = 0;
-						long long Zpos  = 0;
-						for (int i=1; i<=19; i++, p++){
+						int indGPS;
+						int indGlonass;
+						int indGalileo;
+						int indRefS;
+						unsigned char Xpos[5];
+						double xPos;
+						unsigned char Ypos[5];
+						unsigned char Zpos[5];
+						int i = 1;
+						for (i=1; i<=19; i++, p++){
 							switch (i){
 							case 1:{
 								MsgId = ((int) *p)<<4;
@@ -184,72 +190,80 @@ int main()
 							}
 							case 2:{
 								MsgId += ((int) *p)>>4;
-								StaId =  ((int) *p)<<4;
+								StaId =  ((int) *p & 0x00001111)<<8;
 								break;
 							}
 							case 3:{
-								StaId += ((int) *p)>>4;
+								StaId += ((int) *p);
 								break;
 							}
 							case 4:{
 								ItRef = ((int) *p)>>2;
+								indGPS     = ((int) *p & 0x00000010) >> 1;
+								indGlonass = (int) *p & 0x00000001;
 								break;
 							}
 							case 5: {
-								Xpos = ((long long) (*p & 0x00111111))<<32;
+								indGalileo = ((int) *p & 0x10000000) >> 7;
+								indRefS    = ((int) *p & 0x01000000) >> 6;
+								Xpos[0]        = *p & 0x00111111;
 								break;
 							}
 							case 6:
-								Xpos += ((long long) *p)<<24;
+								Xpos[1]        = *p;
 								break;
 							case 7:
-								Xpos += ((long long)*p)<<16;
+								Xpos[2]        = *p;
 								break;
 							case 8:
-								Xpos += ((long long)*p)<<8;
+								Xpos[3]        = *p;
 								break;
 							case 9:
-								Xpos += ((long long)*p);
-								Xpos = Xpos*0.0001;
+								Xpos[4]        = *p;
+								xPos           = *((double*) Xpos) * 0.0001;
 								break;
 							case 10:{
-								Ypos = ((long long) (*p & 0x00111111))<<32;
+								//Ypos = ((long long) (*p & 0x00111111))<<32;
 								break;
 							}
 							case 11:
-								Ypos += ((long long)*p)<<24;
+								//Ypos += ((long long)*p)<<24;
 								break;
 							case 12:
-								Ypos += ((long long)*p)<<16;
+								//Ypos += ((long long)*p)<<16;
 								break;
 							case 13:
-								Ypos += ((long long)*p)<<8;
+								//Ypos += ((long long)*p)<<8;
 								break;
 							case 14:
-								Ypos += ((long long)*p);
-								Ypos = Ypos*0.0001;
+								//Ypos += ((long long)*p);
+								//Ypos = Ypos*0.0001;
 								break;
 							case 15:{
-								Zpos = ((long long) (*p & 0x00111111))<<32;
+								//Zpos = ((long long) (*p & 0x00111111))<<32;
 								break;
 							}
 							case 16:
-								Zpos += ((long long)*p)<<24;
+								//Zpos += ((long long)*p)<<24;
 								break;
 							case 17:
-								Zpos += ((long long)*p)<<16;
+								//Zpos += ((long long)*p)<<16;
 								break;
 							case 18:
-								Zpos += ((long long)*p)<<8;
+								//Zpos += ((long long)*p)<<8;
 								break;
 							case 19:
-								Zpos += ((long long)*p);
-								Zpos = Zpos*0.0001;
+								//Zpos += ((long long)*p);
+								//Zpos = Zpos*0.0001;
 								break;
 							}
 						}
 						printf("MsgId: %i \n", MsgId); printf("StaId: %i \n", StaId); printf("ItRef: %i \n", ItRef);
-						printf("Xpos: %0.2f \n", (double)Xpos); printf("Ypos: %0.2f \n", (double)Ypos); printf("Zpos: %0.2f \n", (double)Zpos);
+						printf("indGPS: %i \n", indGPS);
+						printf("indGlonass: %i \n", indGlonass);
+						printf("indGallileo: %i \n", indGalileo);
+						printf("indRefS: %i \n", indGalileo);
+						printf("Xpos: %0.0f \n", xPos);// printf("Ypos: %0.2f \n", (double) Ypos); printf("Zpos: %0.2f \n", (double) Zpos);
 					}
 					else{
 						for (p = message; byteCounter> 0;byteCounter--, p++){
