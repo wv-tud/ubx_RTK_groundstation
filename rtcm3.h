@@ -9,7 +9,11 @@
 
 #ifndef LIBRTCM3_RTCM3_H
 #define LIBRTCM3_RTCM3_H
+
 #define RTCM3_PREAMBLE 0xD3
+#define RTCM3_MSG_1005 0x69
+#define RTCM3_MSG_1077 0xB1
+#define RTCM3_MSG_1087 0xBB
 
 #include <errno.h>
 #include "common.h"
@@ -288,7 +292,14 @@ s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(u8 *buff, u32 n, void *context))
 			{
 				s->state = READ_PREAMBLE;
 				// Check what message type it is
-				s->msg_type  = RTCMgetbitu(s->msg_buff, 24 + 0, 12);
+
+				switch(RTCMgetbitu(s->msg_buff, 24 + 0, 12))
+				{
+				case 1005: s->msg_type = RTCM3_MSG_1005; break;
+				case 1077: s->msg_type = RTCM3_MSG_1077; break;
+				case 1087: s->msg_type = RTCM3_MSG_1087; break;
+				default: printf("Unknown message type\n"); return RTCM3_OK_CALLBACK_UNDEFINED;
+				}
 				s->sender_id = RTCM3_SENDER_ID;
 				s->n_read++;
 				s->msg_len   = s->n_read;

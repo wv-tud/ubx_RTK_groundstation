@@ -82,11 +82,11 @@ int main()
 		readstatus = rtcm3_process(&state, &rtcm3_read);
 		if (readstatus ==  RTCM3_OK_CALLBACK_EXECUTED){
 			switch(state.msg_type){
-			case 1077:
-			case 1087:
+			case RTCM3_MSG_1077:
+			case RTCM3_MSG_1087:
 				printf("Read message %i of length %i\n", state.msg_type, state.msg_len);
 				break;
-			case 1005:
+			case RTCM3_MSG_1005:
 				printf("Read message %i of length %i\n", state.msg_type, state.msg_len);
 				struct RTCM3_1005 msg1005;
 				msg1005.StaId 		= RTCMgetbitu(state.msg_buff, 24 + 12, 12);
