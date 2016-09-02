@@ -73,15 +73,26 @@ int status = 0;
 int rawIndex = 0;
 int checksumCounter = 0;
 int byteIndex = 0;
+int fd;
 
 #define MSG_DEST	"ground"
 #define MSG_NAME    "FLIGHT_PARAM"
 #define MSG_ID		"GCS"
 
+
+static uint32_t sbp_read(uint8_t *buff, uint32_t n, void *context __attribute__((unused)))
+{
+  int ret = read(fd, buff, n);
+  if(ret > 0)
+    return ret;
+  else
+    return 0;
+}
+
+
 int main()
 {
 	// Initialize variables
-	int fd;
 	// Set GPS port
 	char *portname = GPS_PORT;
 	//char* ivy_bus;
@@ -109,12 +120,15 @@ int main()
 	//IvyStart(ivy_bus);
 
 	/* simple noncanonical input */
-	struct RTCM3_msg message;
+	sbp_state_t state;
+	int readstatus;
 	while ( 1 == 1 )
 	{
-		readMessage(&fd, &message);
+		readstatus = sbp_process(&state, &sbp_read);
+		if (readstatus ==  SBP_OK_CALLBACK_EXECUTED){
+
 		printf("Read message %i of length %i\n", message.type, message.length);
-		if (message.type == 1005){
+		if (state.msg_type == 1005){
 			struct RTCM3_1005 msg1005;
 
 			msg1005.StaId 		= getbitu(message.raw_msg, 24 + 12, 12);
@@ -136,7 +150,7 @@ int main()
 			printf("indGallileo: %i \n", msg1005.indGalileo);
 			printf("indRefS: %i \n", msg1005.indRefS);
 
-			message.msg1005 = &msg1005;
+		}
 			/*
 		IvySendMsg("%s %s %s %f %f %f %f %f %f %f %f %f %f %f %d %f",
 				MSG_DEST,
@@ -157,8 +171,10 @@ int main()
 				0.0); // airspeed
 			 */
 		}
-		else{
+		else if (readstatus==SBP_CRC_ERROR){
 			// Messages 1077 1087
+			printf("Error: Resetting status to Preamble \n");
+			state.state = READ_PREAMBLE;
 		}
 	}
 	return 0;
