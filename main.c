@@ -9,12 +9,6 @@
 [1005 reference:                   https://github.com/jcmb/RTCM3/blob/master/DEFS/1005.RTCM3]
 */
 
-#define READ_PREAMBLE 0
-#define READ_RESERVED 1
-#define READ_LENGTH   2
-#define READ_MESSAGE  3
-#define READ_CHECKSUM 4
-
 #ifndef GPS_PORT
 #define GPS_PORT "/dev/ttyUSB0"
 #endif
@@ -28,7 +22,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <stdbool.h>
-#include "crc24q.h"
+#include "rtcm3.h"
 
 struct EcefCoor_f {
   float x; ///< in meters
@@ -60,19 +54,15 @@ struct RTCM3_msg {
 	struct RTCM3_1005 *msg1005;
 };
 
-struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f posecefpos);
-int              set_interface_attribs(int fd, int speed);
-void             set_mincount(int fd, int mcount);
-unsigned int     getbitu(unsigned char *buff, int pos, int len);
-int              getbits(unsigned char *buff, int pos, int len);
-static double    getbits_38(unsigned char *buff, int pos);
-void             readMessage(int *fd, struct RTCM3_msg *message);
+struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f);
+int              set_interface_attribs(int, int);
+void             set_mincount(int, int);
+unsigned int     getbitu(unsigned char *, int , int );
+int              getbits(unsigned char *, int , int );
+static double    getbits_38(unsigned char *, int );
+void             readMessage(int *, struct RTCM3_msg *);
 
 // Required global variables
-int status = 0;
-int rawIndex = 0;
-int checksumCounter = 0;
-int byteIndex = 0;
 int fd;
 
 #define MSG_DEST	"ground"
@@ -127,19 +117,19 @@ int main()
 		readstatus = sbp_process(&state, &sbp_read);
 		if (readstatus ==  SBP_OK_CALLBACK_EXECUTED){
 
-		printf("Read message %i of length %i\n", message.type, message.length);
+		printf("Read message %i of length %i\n", state.msg_type, state.msg_len);
 		if (state.msg_type == 1005){
 			struct RTCM3_1005 msg1005;
 
-			msg1005.StaId 		= getbitu(message.raw_msg, 24 + 12, 12);
-			msg1005.ItRef 		= getbitu(message.raw_msg, 24 + 24, 6);
-			msg1005.indGPS 		= getbitu(message.raw_msg, 24 + 30, 1);
-			msg1005.indGlonass 	= getbitu(message.raw_msg, 24 + 31, 1);
-			msg1005.indGalileo 	= getbitu(message.raw_msg, 24 + 32, 1);
-			msg1005.indRefS 	= getbitu(message.raw_msg, 24 + 33, 1);
-			msg1005.posEcef.x   = getbits_38(message.raw_msg, 24 + 34) * 0.0001;
-			msg1005.posEcef.y   = getbits_38(message.raw_msg, 24 + 74) * 0.0001;
-			msg1005.posEcef.z   = getbits_38(message.raw_msg, 24 + 114) * 0.0001;
+			msg1005.StaId 		= getbitu(state.msg_buff, 24 + 12, 12);
+			msg1005.ItRef 		= getbitu(state.msg_buff, 24 + 24, 6);
+			msg1005.indGPS 		= getbitu(state.msg_buff, 24 + 30, 1);
+			msg1005.indGlonass 	= getbitu(state.msg_buff, 24 + 31, 1);
+			msg1005.indGalileo 	= getbitu(state.msg_buff, 24 + 32, 1);
+			msg1005.indRefS 	= getbitu(state.msg_buff, 24 + 33, 1);
+			msg1005.posEcef.x   = getbits_38(state.msg_buff, 24 + 34) * 0.0001;
+			msg1005.posEcef.y   = getbits_38(state.msg_buff, 24 + 74) * 0.0001;
+			msg1005.posEcef.z   = getbits_38(state.msg_buff, 24 + 114) * 0.0001;
 			msg1005.posLla      = lla_of_ecef_f(msg1005.posEcef);
 
 			printf("To send: (Lat: %f) \t (Lon: %f) \t (Alt: %f)\n", msg1005.posLla.lat / (2*3.1415) * 360, msg1005.posLla.lon / (2*3.1415) * 360, msg1005.posLla.alt);
@@ -172,7 +162,6 @@ int main()
 			 */
 		}
 		else if (readstatus==SBP_CRC_ERROR){
-			// Messages 1077 1087
 			printf("Error: Resetting status to Preamble \n");
 			state.state = READ_PREAMBLE;
 		}
@@ -180,62 +169,62 @@ int main()
 	return 0;
 }
 
-void  readMessage(int *fd, struct RTCM3_msg *message){
-	int len = 0;
-	int len1 = 0;
-	do {
-		unsigned char buf[3];
-		int rdlen;
-		rdlen = read(*fd, buf, sizeof(buf) - 1);
-		if (rdlen > 0) {
-			switch (status){
-			case READ_PREAMBLE:
-				if (((int) buf[0]) == 211){
-					status = READ_RESERVED;
-					rawIndex = 0;
-					message->raw_msg[rawIndex] = buf[0];
-					checksumCounter = 0;
-					byteIndex = 0;
-				}
-				break;
-			case READ_RESERVED:
-				message->raw_msg[rawIndex] = buf[0];
-				len1 = ((int) buf[0])  & 0b00000011;
-				status = READ_LENGTH;
-				break;
-			case READ_LENGTH:
-				message->raw_msg[rawIndex] = buf[0];
-				len = (len1 << 8) + ((int) buf[0]) ;
-				status = READ_MESSAGE;
-				break;
-			case READ_MESSAGE:
-				message->raw_msg[rawIndex] = buf[0];
-				if (byteIndex == (len - 1)) status = READ_CHECKSUM;
-				byteIndex++;
-				break;
-			case READ_CHECKSUM:
-				message->raw_msg[rawIndex] = buf[0];
-				checksumCounter++;
-				if(checksumCounter == 3)
-				{
-					// Check the message
-					status = READ_PREAMBLE;
-					// We've checked the message and it checks out
-					// Check what message type it is
-					message->type   = getbitu(message->raw_msg, 24 + 0, 12);
-					message->length = rawIndex+1;
-					// Printing useful messages from RTK1005 msg.
-					return;
-				}
-				break;
-			}
-			rawIndex++;
-		} else if (rdlen < 0) {
-			printf("Error from read: %d: %s\n", rdlen, strerror(errno));
-		}
-		/* repeat read to get full message */
-	} while (1);
-}
+//void  readMessage(int *fd, struct RTCM3_msg *message){
+//	int len = 0;
+//	int len1 = 0;
+//	do {
+//		unsigned char buf[3];
+//		int rdlen;
+//		rdlen = read(*fd, buf, sizeof(buf) - 1);
+//		if (rdlen > 0) {
+//			switch (status){
+//			case READ_PREAMBLE:
+//				if (((int) buf[0]) == 211){
+//					status = READ_RESERVED;
+//					rawIndex = 0;
+//					message->raw_msg[rawIndex] = buf[0];
+//					checksumCounter = 0;
+//					byteIndex = 0;
+//				}
+//				break;
+//			case READ_RESERVED:
+//				message->raw_msg[rawIndex] = buf[0];
+//				len1 = ((int) buf[0])  & 0b00000011;
+//				status = READ_LENGTH;
+//				break;
+//			case READ_LENGTH:
+//				message->raw_msg[rawIndex] = buf[0];
+//				len = (len1 << 8) + ((int) buf[0]) ;
+//				status = READ_MESSAGE;
+//				break;
+//			case READ_MESSAGE:
+//				message->raw_msg[rawIndex] = buf[0];
+//				if (byteIndex == (len - 1)) status = READ_CHECKSUM;
+//				byteIndex++;
+//				break;
+//			case READ_CHECKSUM:
+//				message->raw_msg[rawIndex] = buf[0];
+//				checksumCounter++;
+//				if(checksumCounter == 3)
+//				{
+//					// Check the message
+//					status = READ_PREAMBLE;
+//					// We've checked the message and it checks out
+//					// Check what message type it is
+//					message->type   = getbitu(message->raw_msg, 24 + 0, 12);
+//					message->length = rawIndex+1;
+//					// Printing useful messages from RTK1005 msg.
+//					return;
+//				}
+//				break;
+//			}
+//			rawIndex++;
+//		} else if (rdlen < 0) {
+//			printf("Error from read: %d: %s\n", rdlen, strerror(errno));
+//		}
+//		/* repeat read to get full message */
+//	} while (1);
+//}
 
 struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f posecefpos)
 {
@@ -325,19 +314,19 @@ void set_mincount(int fd, int mcount)
 		printf("Error tcsetattr: %s\n", strerror(errno));
 }
 
-unsigned int getbitu(unsigned char *buff, int pos, int len)
+unsigned int getbitu(unsigned char *buff, int pos, int lenb)
 {
 	unsigned int bits=0;
 	int i;
-	for (i=pos;i<pos+len;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
+	for (i=pos;i<pos+lenb;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
 	return bits;
 }
 
-int getbits(unsigned char *buff, int pos, int len)
+int getbits(unsigned char *buff, int pos, int lenb)
 {
-	unsigned int bits=getbitu(buff,pos,len);
-	if (len<=0||32<=len||!(bits&(1u<<(len-1)))) return (int)bits;
-	return (int)(bits|(~0u<<len)); /* extend sign */
+	unsigned int bits=getbitu(buff,pos,lenb);
+	if (lenb<=0||32<=lenb||!(bits&(1u<<(lenb-1)))) return (int)bits;
+	return (int)(bits|(~0u<<lenb)); /* extend sign */
 }
 
 static double getbits_38(unsigned char *buff, int pos)
