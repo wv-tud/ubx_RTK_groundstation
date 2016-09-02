@@ -78,10 +78,10 @@ s8 sbp_process(sbp_state_t *s, u32 (*read)(u8 *buff, u32 n, void* context));
 s8 sbp_send_message(sbp_state_t *s, u16 msg_type, u16 sender_id, u8 len, u8 *payload,
                     u32 (*write)(u8 *buff, u32 n, void* context));
 
-int len             = 0;
-int len1            = 0;
+int rd_msg_len      = 0;
+int rd_msg_len1     = 0;
 int byteIndex       = 0;
 int checksumCounter = 0;
-
+int rawIndex        = 0;
 #endif /* LIBSBP_SBP_H */
 

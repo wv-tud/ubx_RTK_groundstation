@@ -329,17 +329,17 @@ s8 sbp_process(sbp_state_t *s, u32 (*read)(u8 *buff, u32 n, void *context))
 			break;
 		case READ_RESERVED:
 			s->msg_buff[s->n_read] = buf[0];
-			len1 = ((int) buf[0])  & 0b00000011;
+			rd_msg_len1 = ((int) buf[0])  & 0b00000011;
 			s->state = READ_LENGTH;
 			break;
 		case READ_LENGTH:
 			s->msg_buff[s->n_read] = buf[0];
-			len = (len1 << 8) + ((int) buf[0]) ;
+			rd_msg_len = (rd_msg_len1 << 8) + ((int) buf[0]) ;
 			s->state = READ_MESSAGE;
 			break;
 		case READ_MESSAGE:
 			s->msg_buff[s->n_read] = buf[0];
-			if (byteIndex == (len - 1)) s->state = READ_CHECKSUM;
+			if (byteIndex == (rd_msg_len - 1)) s->state = READ_CHECKSUM;
 			byteIndex++;
 			break;
 		case READ_CHECKSUM:
