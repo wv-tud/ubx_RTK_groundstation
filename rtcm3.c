@@ -353,6 +353,9 @@ s8 sbp_process(sbp_state_t *s, u32 (*read)(u8 *buff, u32 n, void *context))
 				s->sender_id = SBP_SENDER_ID;
 				s->n_read++;
 				s->msg_len   = s->n_read;
+#if NO_CALLBACK
+				return SBP_OK_CALLBACK_EXECUTED;
+#else
 				/* Message complete, process it. */
 				sbp_msg_callbacks_node_t* node = sbp_find_callback(s, s->msg_type);
 				if (node) {
@@ -361,6 +364,7 @@ s8 sbp_process(sbp_state_t *s, u32 (*read)(u8 *buff, u32 n, void *context))
 				} else {
 					return SBP_OK_CALLBACK_UNDEFINED;
 				}
+#endif
 			}
 			break;
 		}
