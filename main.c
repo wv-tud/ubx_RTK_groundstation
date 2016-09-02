@@ -41,12 +41,12 @@ struct LlaCoor_f {
 };
 
 struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f posecefpos);
-int set_interface_attribs(int fd, int speed);
-void set_mincount(int fd, int mcount);
-unsigned int getbitu(unsigned char *buff, int pos, int len);
-unsigned int getbitu(unsigned char *buff, int pos, int len);
-int getbits(unsigned char *buff, int pos, int len);
-static double getbits_38(unsigned char *buff, int pos);
+int              set_interface_attribs(int fd, int speed);
+void             set_mincount(int fd, int mcount);
+unsigned int     getbitu(unsigned char *buff, int pos, int len);
+unsigned int     getbitu(unsigned char *buff, int pos, int len);
+int              getbits(unsigned char *buff, int pos, int len);
+static double    getbits_38(unsigned char *buff, int pos);
 
 #define MSG_DEST	"ground"
 #define MSG_NAME    "FLIGHT_PARAM"
@@ -61,7 +61,7 @@ int main()
 	int rawIndex = 0;
 	int checksumCounter = 0;
 	int byteIndex = 0;
-	unsigned char raw_msg[1024], message[100];
+	unsigned char raw_msg[1024];
 	// Set GPS port
 	char *portname = GPS_PORT;
 	//char* ivy_bus;
@@ -93,7 +93,6 @@ int main()
 	do {
 		unsigned char buf[3];
 		int rdlen;
-
 		rdlen = read(fd, buf, sizeof(buf) - 1);
 		if (rdlen > 0) {
 			switch (status){
@@ -119,13 +118,7 @@ int main()
 				break;
 			case READ_MESSAGE:
 				raw_msg[rawIndex] = buf[0];
-				// read
-				message[byteIndex] = buf[0];
-				if (byteIndex == (len - 1))
-				{
-					status = READ_CHECKSUM;
-
-				}
+				if (byteIndex == (len - 1)) status = READ_CHECKSUM;
 				byteIndex++;
 				break;
 			case READ_CHECKSUM:
@@ -137,36 +130,31 @@ int main()
 					status = READ_PREAMBLE;
 					// We've checked the message and it checks out
 					// Check what message type it is
-					unsigned char *b = message;
-					int msg1 = *b;
-					b++;
-					int msg2 = *b;
-					int RTK_msgtype = (msg1 << 4) + (msg2 >> 4);
-					printf ("RTKmsgType: %i\n", RTK_msgtype);
+
+					int MsgId 		= getbitu(raw_msg, 24 + 0, 12);
+					printf ("RTKmsgType: %i\n", MsgId);
 
 					// Printing useful messages from RTK1005 msg.
-					if (RTK_msgtype == 1005){
-						int i = 1;
-						int MsgId 		= getbitu(message, 0, 12);
-						int StaId 		= getbitu(message, 12, 12);
-						int ItRef 		= getbitu(message, 24, 6);
-						int indGPS 		= getbitu(message, 30, 1);
-						int indGlonass 	= getbitu(message, 31, 1);
-						int indGalileo 	= getbitu(message, 32, 1);
-						int indRefS 	= getbitu(message, 33, 1);
+					if (MsgId == 1005){
+						int StaId 		= getbitu(raw_msg, 24 + 12, 12);
+						int ItRef 		= getbitu(raw_msg, 24 + 24, 6);
+						int indGPS 		= getbitu(raw_msg, 24 + 30, 1);
+						int indGlonass 	= getbitu(raw_msg, 24 + 31, 1);
+						int indGalileo 	= getbitu(raw_msg, 24 + 32, 1);
+						int indRefS 	= getbitu(raw_msg, 24 + 33, 1);
 						struct EcefCoor_f posecef;
-						posecef.x = getbits_38(message,34) * 0.0001;
-						posecef.y = getbits_38(message,74) * 0.0001;
-						posecef.z = getbits_38(message,114) * 0.0001;
+						posecef.x = getbits_38(raw_msg, 24 + 34) * 0.0001;
+						posecef.y = getbits_38(raw_msg, 24 + 74) * 0.0001;
+						posecef.z = getbits_38(raw_msg, 24 + 114) * 0.0001;
 						struct LlaCoor_f poslla;
 						poslla = lla_of_ecef_f(posecef);
 						printf("To send: (Lat: %f) \t (Lon: %f) \t (Alt: %f)\n", poslla.lat / (2*3.1415) * 360, poslla.lon / (2*3.1415) * 360, poslla.alt);
-						printf("MsgId: %i \n", MsgId); printf("StaId: %i \n", StaId); printf("ItRef: %i \n", ItRef);
+						printf("MsgId: %i \n", MsgId); printf("StaId: %i \n", StaId);
+						printf("ItRef: %i \n", ItRef);
 						printf("indGPS: %i \n", indGPS);
 						printf("indGlonass: %i \n", indGlonass);
 						printf("indGallileo: %i \n", indGalileo);
-						printf("indRefS: %i \n", indGalileo);
-
+						printf("indRefS: %i \n", indRefS);
 						/*
 						 IvySendMsg("%s %s %s %f %f %f %f %f %f %f %f %f %f %f %d %f",
 						                 MSG_DEST,
@@ -206,38 +194,38 @@ struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f posecefpos)
 {
 	struct LlaCoor_f posllapos;
 	// FIXME : make an ellipsoid struct
-  static const float a = 6378137.0;           /* earth semimajor axis in meters */
-  static const float f = 1. / 298.257223563;  /* reciprocal flattening          */
-  const float b = a * (1. - f);               /* semi-minor axis                */
-  const float b2 = b * b;
+	static const float a = 6378137.0;           /* earth semimajor axis in meters */
+	static const float f = 1. / 298.257223563;  /* reciprocal flattening          */
+	const float b = a * (1. - f);               /* semi-minor axis                */
+	const float b2 = b * b;
 
-  const float e2 = 2.*f - (f * f);            /* first eccentricity squared     */
-  const float ep2 = f * (2. - f) / ((1. - f) * (1. - f)); /* second eccentricity squared    */
-  const float E2 = a * a - b2;
+	const float e2 = 2.*f - (f * f);            /* first eccentricity squared     */
+	const float ep2 = f * (2. - f) / ((1. - f) * (1. - f)); /* second eccentricity squared    */
+	const float E2 = a * a - b2;
 
 
-  const float z2 = posecefpos.z * posecefpos.z;
-  const float r2 = posecefpos.x * posecefpos.x + posecefpos.y * posecefpos.y;
-  const float r = sqrtf(r2);
-  const float F = 54.*b2 * z2;
-  const float G = r2 + (1 - e2) * z2 - e2 * E2;
-  const float c = (e2 * e2 * F * r2) / (G * G * G);
-  const float s = powf((1 + c + sqrtf(c * c + 2 * c)), 1. / 3.);
-  const float s1 = 1 + s + 1 / s;
-  const float P = F / (3 * s1 * s1 * G * G);
-  const float Q = sqrtf(1 + 2 * e2 * e2 * P);
-  const float ro = -(e2 * P * r) / (1 + Q) + sqrtf((a * a / 2) * (1 + 1 / Q) - ((1 - e2) * P * z2) / (Q *
-                   (1 + Q)) - P * r2 / 2);
-  const float tmp = (r - e2 * ro) * (r - e2 * ro);
-  const float U = sqrtf(tmp + z2);
-  const float V = sqrtf(tmp + (1 - e2) * z2);
-  const float zo = (b2 * posecefpos.z) / (a * V);
+	const float z2 = posecefpos.z * posecefpos.z;
+	const float r2 = posecefpos.x * posecefpos.x + posecefpos.y * posecefpos.y;
+	const float r = sqrtf(r2);
+	const float F = 54.*b2 * z2;
+	const float G = r2 + (1 - e2) * z2 - e2 * E2;
+	const float c = (e2 * e2 * F * r2) / (G * G * G);
+	const float s = powf((1 + c + sqrtf(c * c + 2 * c)), 1. / 3.);
+	const float s1 = 1 + s + 1 / s;
+	const float P = F / (3 * s1 * s1 * G * G);
+	const float Q = sqrtf(1 + 2 * e2 * e2 * P);
+	const float ro = -(e2 * P * r) / (1 + Q) + sqrtf((a * a / 2) * (1 + 1 / Q) - ((1 - e2) * P * z2) / (Q *
+			(1 + Q)) - P * r2 / 2);
+	const float tmp = (r - e2 * ro) * (r - e2 * ro);
+	const float U = sqrtf(tmp + z2);
+	const float V = sqrtf(tmp + (1 - e2) * z2);
+	const float zo = (b2 * posecefpos.z) / (a * V);
 
-  posllapos.alt = U * (1 - b2 / (a * V));
-  posllapos.lat = atanf((posecefpos.z + ep2 * zo) / r);
-  posllapos.lon = atan2f(posecefpos.y, posecefpos.x);
+	posllapos.alt = U * (1 - b2 / (a * V));
+	posllapos.lat = atanf((posecefpos.z + ep2 * zo) / r);
+	posllapos.lon = atan2f(posecefpos.y, posecefpos.x);
 
-  return posllapos;
+	return posllapos;
 }
 
 int set_interface_attribs(int fd, int speed)
@@ -292,20 +280,20 @@ void set_mincount(int fd, int mcount)
 
 unsigned int getbitu(unsigned char *buff, int pos, int len)
 {
-    unsigned int bits=0;
-    int i;
-    for (i=pos;i<pos+len;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
-    return bits;
+	unsigned int bits=0;
+	int i;
+	for (i=pos;i<pos+len;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
+	return bits;
 }
 
 int getbits(unsigned char *buff, int pos, int len)
 {
-    unsigned int bits=getbitu(buff,pos,len);
-    if (len<=0||32<=len||!(bits&(1u<<(len-1)))) return (int)bits;
-    return (int)(bits|(~0u<<len)); /* extend sign */
+	unsigned int bits=getbitu(buff,pos,len);
+	if (len<=0||32<=len||!(bits&(1u<<(len-1)))) return (int)bits;
+	return (int)(bits|(~0u<<len)); /* extend sign */
 }
 
 static double getbits_38(unsigned char *buff, int pos)
 {
-    return (double)getbits(buff,pos,32)*64.0+getbitu(buff,pos+32,6);
+	return (double)getbits(buff,pos,32)*64.0+getbitu(buff,pos+32,6);
 }
