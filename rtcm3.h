@@ -11,6 +11,7 @@
 #define LIBSBP_SBP_H
 
 #include "common.h"
+#include <errno.h>
 
 /** \addtogroup sbp
  * \{ */
