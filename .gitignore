@@ -37,3 +37,4 @@
 *.cproject
 *.project
 /.settings/
+/main.d

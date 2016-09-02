@@ -27,6 +27,8 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <stdbool.h>
+#include "crc24q.h"
 
 struct EcefCoor_f {
   float x; ///< in meters
@@ -40,13 +42,37 @@ struct LlaCoor_f {
   float alt; ///< in meters (normally above WGS84 reference ellipsoid)
 };
 
+struct RTCM3_1005 {
+	int StaId;
+	int ItRef;
+	int indGPS;
+	int indGlonass;
+	int indGalileo;
+	int indRefS;
+	struct EcefCoor_f posEcef;
+	struct LlaCoor_f posLla;
+};
+
+struct RTCM3_msg {
+	int length;
+	int type;
+	unsigned char raw_msg[1024];
+	struct RTCM3_1005 *msg1005;
+};
+
 struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f posecefpos);
 int              set_interface_attribs(int fd, int speed);
 void             set_mincount(int fd, int mcount);
 unsigned int     getbitu(unsigned char *buff, int pos, int len);
-unsigned int     getbitu(unsigned char *buff, int pos, int len);
 int              getbits(unsigned char *buff, int pos, int len);
 static double    getbits_38(unsigned char *buff, int pos);
+void             readMessage(int *fd, struct RTCM3_msg *message);
+
+// Required global variables
+int status = 0;
+int rawIndex = 0;
+int checksumCounter = 0;
+int byteIndex = 0;
 
 #define MSG_DEST	"ground"
 #define MSG_NAME    "FLIGHT_PARAM"
@@ -56,12 +82,6 @@ int main()
 {
 	// Initialize variables
 	int fd;
-	int len = 0;
-	int len1 = 0;
-	int rawIndex = 0;
-	int checksumCounter = 0;
-	int byteIndex = 0;
-	unsigned char raw_msg[1024];
 	// Set GPS port
 	char *portname = GPS_PORT;
 	//char* ivy_bus;
@@ -89,40 +109,96 @@ int main()
 	//IvyStart(ivy_bus);
 
 	/* simple noncanonical input */
-	int status = 0;
+	struct RTCM3_msg message;
+	while ( 1 == 1 )
+	{
+		readMessage(&fd, &message);
+		printf("Read message %i of length %i\n", message.type, message.length);
+		if (message.type == 1005){
+			struct RTCM3_1005 msg1005;
+
+			msg1005.StaId 		= getbitu(message.raw_msg, 24 + 12, 12);
+			msg1005.ItRef 		= getbitu(message.raw_msg, 24 + 24, 6);
+			msg1005.indGPS 		= getbitu(message.raw_msg, 24 + 30, 1);
+			msg1005.indGlonass 	= getbitu(message.raw_msg, 24 + 31, 1);
+			msg1005.indGalileo 	= getbitu(message.raw_msg, 24 + 32, 1);
+			msg1005.indRefS 	= getbitu(message.raw_msg, 24 + 33, 1);
+			msg1005.posEcef.x   = getbits_38(message.raw_msg, 24 + 34) * 0.0001;
+			msg1005.posEcef.y   = getbits_38(message.raw_msg, 24 + 74) * 0.0001;
+			msg1005.posEcef.z   = getbits_38(message.raw_msg, 24 + 114) * 0.0001;
+			msg1005.posLla      = lla_of_ecef_f(msg1005.posEcef);
+
+			printf("To send: (Lat: %f) \t (Lon: %f) \t (Alt: %f)\n", msg1005.posLla.lat / (2*3.1415) * 360, msg1005.posLla.lon / (2*3.1415) * 360, msg1005.posLla.alt);
+			printf("StaId: %i \n", msg1005.StaId);
+			printf("ItRef: %i \n", msg1005.ItRef);
+			printf("indGPS: %i \n", msg1005.indGPS);
+			printf("indGlonass: %i \n", msg1005.indGlonass);
+			printf("indGallileo: %i \n", msg1005.indGalileo);
+			printf("indRefS: %i \n", msg1005.indRefS);
+
+			message.msg1005 = &msg1005;
+			/*
+		IvySendMsg("%s %s %s %f %f %f %f %f %f %f %f %f %f %f %d %f",
+				MSG_DEST,
+				MSG_NAME,
+				MSG_ID, // ac_id
+				0.0, // roll,
+				0.0, // pitch,
+				0.0, // heading
+				llh[0],
+				llh[1],
+				0,
+				0, // course
+				llh[2],
+				0,
+				0.0, // agl
+				0,
+				0, // itow
+				0.0); // airspeed
+			 */
+		}
+		else{
+			// Messages 1077 1087
+		}
+	}
+	return 0;
+}
+
+void  readMessage(int *fd, struct RTCM3_msg *message){
+	int len = 0;
+	int len1 = 0;
 	do {
 		unsigned char buf[3];
 		int rdlen;
-		rdlen = read(fd, buf, sizeof(buf) - 1);
+		rdlen = read(*fd, buf, sizeof(buf) - 1);
 		if (rdlen > 0) {
 			switch (status){
 			case READ_PREAMBLE:
 				if (((int) buf[0]) == 211){
 					status = READ_RESERVED;
 					rawIndex = 0;
-					raw_msg[rawIndex] = buf[0];
+					message->raw_msg[rawIndex] = buf[0];
 					checksumCounter = 0;
 					byteIndex = 0;
 				}
 				break;
 			case READ_RESERVED:
-				raw_msg[rawIndex] = buf[0];
+				message->raw_msg[rawIndex] = buf[0];
 				len1 = ((int) buf[0])  & 0b00000011;
 				status = READ_LENGTH;
 				break;
 			case READ_LENGTH:
-				raw_msg[rawIndex] = buf[0];
+				message->raw_msg[rawIndex] = buf[0];
 				len = (len1 << 8) + ((int) buf[0]) ;
-				if(len==19) printf("\n");
 				status = READ_MESSAGE;
 				break;
 			case READ_MESSAGE:
-				raw_msg[rawIndex] = buf[0];
+				message->raw_msg[rawIndex] = buf[0];
 				if (byteIndex == (len - 1)) status = READ_CHECKSUM;
 				byteIndex++;
 				break;
 			case READ_CHECKSUM:
-				raw_msg[rawIndex] = buf[0];
+				message->raw_msg[rawIndex] = buf[0];
 				checksumCounter++;
 				if(checksumCounter == 3)
 				{
@@ -130,55 +206,10 @@ int main()
 					status = READ_PREAMBLE;
 					// We've checked the message and it checks out
 					// Check what message type it is
-
-					int MsgId 		= getbitu(raw_msg, 24 + 0, 12);
-					printf ("RTKmsgType: %i\n", MsgId);
-
+					message->type   = getbitu(message->raw_msg, 24 + 0, 12);
+					message->length = rawIndex+1;
 					// Printing useful messages from RTK1005 msg.
-					if (MsgId == 1005){
-						int StaId 		= getbitu(raw_msg, 24 + 12, 12);
-						int ItRef 		= getbitu(raw_msg, 24 + 24, 6);
-						int indGPS 		= getbitu(raw_msg, 24 + 30, 1);
-						int indGlonass 	= getbitu(raw_msg, 24 + 31, 1);
-						int indGalileo 	= getbitu(raw_msg, 24 + 32, 1);
-						int indRefS 	= getbitu(raw_msg, 24 + 33, 1);
-						struct EcefCoor_f posecef;
-						posecef.x = getbits_38(raw_msg, 24 + 34) * 0.0001;
-						posecef.y = getbits_38(raw_msg, 24 + 74) * 0.0001;
-						posecef.z = getbits_38(raw_msg, 24 + 114) * 0.0001;
-						struct LlaCoor_f poslla;
-						poslla = lla_of_ecef_f(posecef);
-						printf("To send: (Lat: %f) \t (Lon: %f) \t (Alt: %f)\n", poslla.lat / (2*3.1415) * 360, poslla.lon / (2*3.1415) * 360, poslla.alt);
-						printf("MsgId: %i \n", MsgId); printf("StaId: %i \n", StaId);
-						printf("ItRef: %i \n", ItRef);
-						printf("indGPS: %i \n", indGPS);
-						printf("indGlonass: %i \n", indGlonass);
-						printf("indGallileo: %i \n", indGalileo);
-						printf("indRefS: %i \n", indRefS);
-						/*
-						 IvySendMsg("%s %s %s %f %f %f %f %f %f %f %f %f %f %f %d %f",
-						                 MSG_DEST,
-						                 MSG_NAME,
-						                 MSG_ID, // ac_id
-						                 0.0, // roll,
-						                 0.0, // pitch,
-						                 0.0, // heading
-						 				llh[0],
-						 				llh[1],
-						                 0,
-						                 0, // course
-						                 llh[2],
-						                 0,
-						                 0.0, // agl
-						                 0,
-						                 0, // itow
-						                 0.0); // airspeed
-*/
-					}
-					else{
-						// Messages 1077 1087
-					}
-					printf("\n");
+					return;
 				}
 				break;
 			}
