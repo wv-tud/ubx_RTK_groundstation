@@ -62,25 +62,21 @@ typedef struct {
   u16 crc;
   u8 msg_len;
   u8 n_read;
-  u8 msg_buff[256]; // TODO: change to 1024?
+  u8 msg_buff[1024+6+1];
   void* io_context;
   rtcm3_msg_callbacks_node_t* rtcm3_msg_callbacks_head;
 } rtcm3_state_t;
 
-/** \} */
-
-s8 rtcm3_register_callback(rtcm3_state_t* s, u16 msg_type, rtcm3_msg_callback_t cb, void* context,
-                         rtcm3_msg_callbacks_node_t *node);
-void rtcm3_clear_callbacks(rtcm3_state_t* s);
+s8                          rtcm3_register_callback(rtcm3_state_t* s, u16 msg_type, rtcm3_msg_callback_t cb, void* context, rtcm3_msg_callbacks_node_t *node);
+void                        rtcm3_clear_callbacks(rtcm3_state_t* s);
 rtcm3_msg_callbacks_node_t* rtcm3_find_callback(rtcm3_state_t* s, u16 msg_type);
-void rtcm3_state_init(rtcm3_state_t *s);
-void rtcm3_state_set_io_context(rtcm3_state_t *s, void* context);
-s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(u8 *buff, u32 n, void* context));
-s8 rtcm3_send_message(rtcm3_state_t *s, u16 msg_type, u16 sender_id, u8 len, u8 *payload,
-                    u32 (*write)(u8 *buff, u32 n, void* context));
-unsigned int     RTCMgetbitu(unsigned char *, int, int);
-int              RTCMgetbits(unsigned char *, int , int );
-static double    RTCMgetbits_38(unsigned char *, int );
+void                        rtcm3_state_init(rtcm3_state_t *s);
+void                        rtcm3_state_set_io_context(rtcm3_state_t *s, void* context);
+s8                          rtcm3_process(rtcm3_state_t *s, u32 (*read)(unsigned char (*buff)[], u32 n, void* context));
+s8                          rtcm3_send_message(rtcm3_state_t *s, u16 msg_type, u16 sender_id, u8 len, u8 *payload, u32 (*write)(u8 *buff, u32 n, void* context));
+unsigned int                RTCMgetbitu(unsigned char *, int, int);
+int                         RTCMgetbits(unsigned char *, int , int );
+static double               RTCMgetbits_38(unsigned char *, int );
 
 int rd_msg_len      = 0;
 int rd_msg_len1     = 0;
@@ -199,7 +195,6 @@ void rtcm3_state_init(rtcm3_state_t *s)
   rtcm3_clear_callbacks(s);
 }
 
-
 /** Set a context to pass to all function pointer calls made by rtcm3 functions
  * This helper function sets a void* context pointer in rtcm3_state.
  * Whenever `rtcm3_process` calls the `read` function pointer, it passes this context.
@@ -213,7 +208,7 @@ void rtcm3_state_set_io_context(rtcm3_state_t *s, void *context)
 
 /** Read and process RTCM3 messages.
  * Reads bytes from an input source using the provided `read` function, decodes
- * the RTCM3 framing and performs a CRC check on the message.
+ * the RTCM3.
  *
  * When an RTCM3 message is successfully received then the list of callbacks is
  * searched for a callback corresponding to the received message type. If a
@@ -250,75 +245,81 @@ void rtcm3_state_set_io_context(rtcm3_state_t *s, void *context)
  *         callback, and `RTCM3_CRC_ERROR` (-2) if a CRC error
  *         has occurred. Thus can check for >0 to ensure good processing.
  */
-s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(u8 *buff, u32 n, void *context))
+s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(unsigned char (*buff)[], u32 n, void *context))
 {
-	u8 buff;
+	unsigned char buff[5]; // We are only requesting 1 byte, but have room for 5
 	int rdlen;
 	rdlen = (*read)(&buff, 1, s->io_context);
+	if(s->n_read == (1024 + 6) && s->state != READ_PREAMBLE)
+	{
+		// We have exceeded the maximum message length (10bit) + 3 opening and 3 closing bytes. And we are not at read_preamble, this is not a proper message, reset!
+		s->state = READ_PREAMBLE;
+	}
 	if (rdlen < 0) {
 		printf("Error from read: %d: %s\n", rdlen, strerror(errno));
 		return RTCM3_CRC_ERROR;
 	}else{
-		switch (s->state){
-		case READ_PREAMBLE:
-			s->n_read = 0;
-			if (((int) buff) == 211){ // int = 211 = 0xD3
-				s->state = READ_RESERVED;
-				rawIndex = 0;
-				s->msg_buff[s->n_read] = buff;
-				checksumCounter = 0;
-				byteIndex = 0;
-			}
-			break;
-		case READ_RESERVED:
-			s->msg_buff[s->n_read] = buff;
-			rd_msg_len1 = ((int) buff)  & 0b00000011;
-			s->state = READ_LENGTH;
-			break;
-		case READ_LENGTH:
-			s->msg_buff[s->n_read] = buff;
-			rd_msg_len = (rd_msg_len1 << 8) + ((int) buff) ;
-			s->state = READ_MESSAGE;
-			break;
-		case READ_MESSAGE:
-			s->msg_buff[s->n_read] = buff;
-			if (byteIndex == (rd_msg_len - 1)) s->state = READ_CHECKSUM;
-			byteIndex++;
-			break;
-		case READ_CHECKSUM:
-			s->msg_buff[s->n_read] = buff;
-			checksumCounter++;
-			if(checksumCounter == 3)
-			{
-				s->state = READ_PREAMBLE;
-				// Check what message type it is
-
-				switch(RTCMgetbitu(s->msg_buff, 24 + 0, 12))
+		// Suppose we get more bytes than requested, lets still process them all
+		int byteN;
+		for(byteN=0; byteN < rdlen; byteN++)
+		{
+			if(s->state != READ_PREAMBLE) s->msg_buff[s->n_read] = buff[byteN];
+			switch (s->state){
+			case READ_PREAMBLE:
+				s->n_read = 0;
+				if (((int) buff[byteN]) == RTCM3_PREAMBLE){
+					s->state = READ_RESERVED;
+					rawIndex        = 0;
+					checksumCounter = 0;
+					byteIndex       = 0;
+					s->msg_buff[s->n_read] = buff[byteN];
+				}
+				break;
+			case READ_RESERVED:
+				rd_msg_len1 = ((int) buff[byteN]) & 0b00000011;
+				s->state    = READ_LENGTH;
+				break;
+			case READ_LENGTH:
+				rd_msg_len  = (rd_msg_len1 << 8) + ((int) buff[byteN]) ;
+				s->state    = READ_MESSAGE;
+				break;
+			case READ_MESSAGE:
+				if (byteIndex == (rd_msg_len - 1)) s->state = READ_CHECKSUM;
+				byteIndex++;
+				break;
+			case READ_CHECKSUM:
+				checksumCounter++;
+				if(checksumCounter == 3)
 				{
-				case 1005: s->msg_type = RTCM3_MSG_1005; break;
-				case 1077: s->msg_type = RTCM3_MSG_1077; break;
-				case 1087: s->msg_type = RTCM3_MSG_1087; break;
-				default: printf("Unknown message type\n"); return RTCM3_OK_CALLBACK_UNDEFINED;
-				}
-				s->sender_id = RTCM3_SENDER_ID;
-				s->n_read++;
-				s->msg_len   = s->n_read;
+					s->state = READ_PREAMBLE;
+					// Check what message type it is
+					switch(RTCMgetbitu(s->msg_buff, 24 + 0, 12))
+					{
+					case 1005: s->msg_type = RTCM3_MSG_1005; break;
+					case 1077: s->msg_type = RTCM3_MSG_1077; break;
+					case 1087: s->msg_type = RTCM3_MSG_1087; break;
+					default  : printf("Unknown message type\n"); return RTCM3_OK_CALLBACK_UNDEFINED;
+					}
+					s->n_read++;
+					s->sender_id = RTCM3_SENDER_ID;
+					s->msg_len   = s->n_read;
 #ifdef NO_CALLBACK
-				return RTCM3_OK_CALLBACK_EXECUTED;
-#else
-				/* Message complete, process it. */
-				rtcm3_msg_callbacks_node_t* node = rtcm3_find_callback(s, s->msg_type);
-				if (node) {
-					(*node->cb)(s->sender_id, s->msg_len, s->msg_buff, node->context);
 					return RTCM3_OK_CALLBACK_EXECUTED;
-				} else {
-					return RTCM3_OK_CALLBACK_UNDEFINED;
-				}
+#else
+					/* Message complete, process its callback. */
+					rtcm3_msg_callbacks_node_t* node = rtcm3_find_callback(s, s->msg_type);
+					if (node) {
+						(*node->cb)(s->sender_id, s->msg_len, s->msg_buff, node->context);
+						return RTCM3_OK_CALLBACK_EXECUTED;
+					} else {
+						return RTCM3_OK_CALLBACK_UNDEFINED;
+					}
 #endif
+				}
+				break;
 			}
-			break;
+			s->n_read++;
 		}
-		s->n_read++;
 		return RTCM3_OK;
 	}
 }
@@ -383,9 +384,6 @@ s8 rtcm3_send_message(rtcm3_state_t *s, u16 msg_type, u16 sender_id, u8 len, u8 
   return RTCM3_OK;
 }
 
-/** \} */
-/** \} */
-
 unsigned int RTCMgetbitu(unsigned char *buff, int pos, int lenb)
 {
 	unsigned int bits=0;
@@ -407,4 +405,3 @@ static double RTCMgetbits_38(unsigned char *buff, int pos)
 }
 
 #endif /* LIBRTCM3_RTCM3_H */
-

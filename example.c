@@ -99,7 +99,7 @@ int main()
 				msg1005.posEcef.y   = RTCMgetbits_38(state.msg_buff, 24 + 74) * 0.0001;
 				msg1005.posEcef.z   = RTCMgetbits_38(state.msg_buff, 24 + 114) * 0.0001;
 				msg1005.posLla      = lla_of_ecef_f(msg1005.posEcef);
-				printf("To send: (Lat: %f) \t (Lon: %f) \t (Alt: %f)\n", msg1005.posLla.lat / (2*3.1415) * 360, msg1005.posLla.lon / (2*3.1415) * 360, msg1005.posLla.alt);
+				printf("To send: (Lat: %f) \t (Lon: %f) \t (Alt: %f)\n", msg1005.posLla.lat / (2 * M_PI) * 360, msg1005.posLla.lon / (2 * M_PI) * 360, msg1005.posLla.alt);
 				printf("StaId: %i \n", msg1005.StaId);
 				printf("ItRef: %i \n", msg1005.ItRef);
 				printf("indGPS: %i \n", msg1005.indGPS);
