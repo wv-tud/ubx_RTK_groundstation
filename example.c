@@ -10,7 +10,7 @@
  */
 // Pre-processor definitions
 #ifndef GPS_PORT
-#define GPS_PORT "/dev/ttyUSB0"
+#define GPS_PORT "/dev/ttyACM0"
 #endif
 #define NO_CALLBACK
 // Includes
@@ -55,7 +55,7 @@ struct RTCM3_msg {
 struct LlaCoor_f lla_of_ecef_f(struct EcefCoor_f);
 int              set_interface_attribs(int, int);
 void             set_mincount(int, int);
-static uint32_t rtcm3_read(uint8_t *, uint32_t n, void * __attribute__((unused)));
+static uint32_t  rtcm3_read(unsigned char (*buff)[], uint32_t n, void * __attribute__((unused)));
 // Required global variables
 int fd;
 
@@ -119,7 +119,7 @@ int main()
 	return 0;
 }
 
-static uint32_t rtcm3_read(uint8_t *buff, uint32_t n, void *context __attribute__((unused)))
+static uint32_t rtcm3_read(unsigned char (*buff)[], uint32_t n, void *context __attribute__((unused)))
 {
 	int ret = read(fd, buff, n);
 	if(ret > 0)

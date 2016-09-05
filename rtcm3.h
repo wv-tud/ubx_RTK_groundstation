@@ -10,6 +10,8 @@
 #ifndef LIBRTCM3_RTCM3_H
 #define LIBRTCM3_RTCM3_H
 
+#define DEBUG_PRINT_PACKAGE
+
 #define RTCM3_PREAMBLE 0xD3
 #define RTCM3_MSG_1005 0x69
 #define RTCM3_MSG_1077 0xB1
@@ -263,6 +265,9 @@ s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(unsigned char (*buff)[], u32 n, v
 		int byteN;
 		for(byteN=0; byteN < rdlen; byteN++)
 		{
+#ifdef DEBUG_PRINT_PACKAGE
+			printf("0x%x ", buff[s->n_read]);
+#endif
 			if(s->state != READ_PREAMBLE) s->msg_buff[s->n_read] = buff[byteN];
 			switch (s->state){
 			case READ_PREAMBLE:
@@ -291,6 +296,9 @@ s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(unsigned char (*buff)[], u32 n, v
 				checksumCounter++;
 				if(checksumCounter == 3)
 				{
+#ifdef DEBUG_PRINT_PACKAGE
+			        printf("\n\n");
+#endif
 					s->state = READ_PREAMBLE;
 					// Check what message type it is
 					switch(RTCMgetbitu(s->msg_buff, 24 + 0, 12))
