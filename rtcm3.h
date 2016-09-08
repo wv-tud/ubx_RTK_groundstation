@@ -10,8 +10,6 @@
 #ifndef LIBRTCM3_RTCM3_H
 #define LIBRTCM3_RTCM3_H
 
-#define DEBUG_PRINT_PACKAGE
-
 #define RTCM3_PREAMBLE 0xD3
 #define RTCM3_MSG_1005 0x69
 #define RTCM3_MSG_1077 0xB1
@@ -249,7 +247,7 @@ void rtcm3_state_set_io_context(rtcm3_state_t *s, void *context)
  */
 s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(unsigned char (*buff)[], u32 n, void *context))
 {
-	unsigned char buff[5]; // We are only requesting 1 byte, but have room for 5
+	unsigned char buff[1000]; // We are only requesting 1 byte, but have room for 5
 	int rdlen;
 	rdlen = (*read)(&buff, 1, s->io_context);
 	if(s->n_read == (1024 + 6) && s->state != READ_PREAMBLE)
