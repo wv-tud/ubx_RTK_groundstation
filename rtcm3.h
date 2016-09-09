@@ -248,6 +248,20 @@ void rtcm3_state_set_io_context(rtcm3_state_t *s, void *context)
 s8 rtcm3_process(rtcm3_state_t *s, u32 (*read)(unsigned char (*buff)[], u32 n, void *context))
 {
 	unsigned char buff[1000]; // We are only requesting 1 byte, but have room for 5
+/*	FAKE MESSAGE
+	buff[s->n_read] = s->n_read;
+	s->n_read++;
+	int fakeMsgLen = 200;
+	if(s->n_read == fakeMsgLen)
+	{
+		s->n_read = 0;
+		rtcm3_msg_callbacks_node_t* node = rtcm3_find_callback(s, RTCM3_MSG_1077);
+		(*node->cb)(s->sender_id, fakeMsgLen, buff, node->context);
+		return RTCM3_OK_CALLBACK_EXECUTED;
+	}else{
+		return RTCM3_OK;
+	}
+*/
 	int rdlen;
 	rdlen = (*read)(&buff, 1, s->io_context);
 	if(s->n_read == (1024 + 6) && s->state != READ_PREAMBLE)
