@@ -50,6 +50,25 @@
 #define UBX_CLASS  2
 
 
+#define UBX_NAV_SVIN_VERSION(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+0))
+#define UBX_NAV_SVIN_RES1(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+1))
+#define UBX_NAV_SVIN_RES2(_ubx_payload) (uint16_t)(*((uint8_t*)_ubx_payload+2)|*((uint8_t*)_ubx_payload+1+2)<<8)
+#define UBX_NAV_SVIN_ITOW(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+4)|*((uint8_t*)_ubx_payload+1+4)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+4))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+4))<<24)
+#define UBX_NAV_SVIN_dur(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+8)|*((uint8_t*)_ubx_payload+1+8)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+8))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+8))<<24)
+#define UBX_NAV_SVIN_meanX(_ubx_payload) (int32_t)(*((uint8_t*)_ubx_payload+12)|*((uint8_t*)_ubx_payload+1+12)<<8|((int32_t)*((uint8_t*)_ubx_payload+2+12))<<16|((int32_t)*((uint8_t*)_ubx_payload+3+12))<<24)
+#define UBX_NAV_SVIN_meanY(_ubx_payload) (int32_t)(*((uint8_t*)_ubx_payload+16)|*((uint8_t*)_ubx_payload+1+16)<<8|((int32_t)*((uint8_t*)_ubx_payload+2+16))<<16|((int32_t)*((uint8_t*)_ubx_payload+3+16))<<24)
+#define UBX_NAV_SVIN_meanZ(_ubx_payload) (int32_t)(*((uint8_t*)_ubx_payload+20)|*((uint8_t*)_ubx_payload+1+20)<<8|((int32_t)*((uint8_t*)_ubx_payload+2+20))<<16|((int32_t)*((uint8_t*)_ubx_payload+3+20))<<24)
+#define UBX_NAV_SVIN_meanXHP(_ubx_payload) (int8_t)(*((uint8_t*)_ubx_payload+24))
+#define UBX_NAV_SVIN_meanYHP(_ubx_payload) (int8_t)(*((uint8_t*)_ubx_payload+25))
+#define UBX_NAV_SVIN_meanZHP(_ubx_payload) (int8_t)(*((uint8_t*)_ubx_payload+26))
+#define UBX_NAV_SVIN_RES3(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+27))
+#define UBX_NAV_SVIN_meanACC(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+28)|*((uint8_t*)_ubx_payload+1+28)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+28))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+28))<<24)
+#define UBX_NAV_SVIN_OBS(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+32)|*((uint8_t*)_ubx_payload+1+32)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+32))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+32))<<24)
+#define UBX_NAV_SVIN_Valid(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+36))
+#define UBX_NAV_SVIN_Active(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+37))
+#define UBX_NAV_SVIN_RES4(_ubx_payload) (uint16_t)(*((uint8_t*)_ubx_payload+38)|*((uint8_t*)_ubx_payload+1+38)<<8)
+
+
 #include <errno.h>
 #include "common.h"
 //#include "ubx_protocol.h"
@@ -91,22 +110,14 @@ typedef struct {
 	u16 msg_type;
 	u8 msg_class;
 	u16 crc;
-	u8 msg_len;
+	u16 msg_len;
 	u8 n_read;
 	u8 msg_buff[1024+6+1];
 	rtcm3_msg_callbacks_node_t* rtcm3_msg_callbacks_head;
-
-    // For Ubx processing
-	bool msg_available;
 	u8 status;
-	u16 len;
-	u8 msg_idx;
 	u8 ck_a, ck_b;
-	u8 send_ck_a, send_ck_b;
 	u8 error_cnt;
 	u8 error_last;
-	u8 status_flags;
-	u8 sol_flags;
 } msg_state_t;
 
 
@@ -308,7 +319,6 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 		s->msg_class = NO_CLASS;
 	}
 	// Suppose we get more bytes than requested, lets still process them all
-	int byteN;
 #ifdef DEBUG_PRINT_PACKAGE
 	printf("0x%x ", buff);
 #endif
@@ -317,7 +327,6 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 	case UNINIT:
 		s->n_read = 0;
 		if (((int) buff) == RTCM3_PREAMBLE){
-			//printf("Read RTCM preamble: 0x%x \n", buff);
 			s->msg_class = RTCM_CLASS;
 			s->state = READ_RESERVED;
 			rawIndex        = 0;
@@ -328,7 +337,6 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 		break;
 	case READ_RESERVED:
 		rd_msg_len1 = ((int) buff) & 0b00000011;
-		//printf("In read_reserved");
 		s->state    = READ_LENGTH;
 		break;
 	case READ_LENGTH:
@@ -351,7 +359,7 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 			switch(RTCMgetbitu(s->msg_buff, 24 + 0, 12))
 			{
 			case 1005: s->msg_type = RTCM3_MSG_1005; break;
-			case 1077: s->msg_type = RTCM3_MSG_1077; break; //printf("msg_type: %i \n",s->msg_type);
+			case 1077: s->msg_type = RTCM3_MSG_1077; break;
 			case 1087: s->msg_type = RTCM3_MSG_1087; break;
 			default  : printf("Unknown message type\n"); return RTCM_OK_CALLBACK_UNDEFINED;
 			}
@@ -382,68 +390,53 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 
 s8 ubx_process (msg_state_t *s, unsigned char buff)
 {
-	if (s->state < GOT_PAYLOAD) {
+	if (s->state < GOT_PAYLOAD && s->msg_class == UBX_CLASS) {
 		s->ck_a += buff;
 		s->ck_b += s->ck_a;
 	}
-	//printf("ubx state: %d\n", s->state);
 	switch (s->state) {
 	case UNINIT:
 		if (buff == UBX_PREAMBLE1) {
-			//printf("UBX preamble found - 0x%x\n", buff);
 			s->state++;
 			s->msg_class = UBX_CLASS;
 		}else{
 			s->n_read = 0;
-			//printf("UBX preamble not found - 0x%x\n",buff);
 		}
 		break;
 	case GOT_SYNC1:
-		if (buff != UBX_PREAMBLE2) {
+		if (buff != UBX_PREAMBLE2 && s->msg_class == UBX_CLASS) {
 			s->error_last = GPS_UBX_ERR_OUT_OF_SYNC;
-			s->msg_class = NO_CLASS;
 			goto error;
 		}
-		//printf("UBX preamble2 found - 0x%x\n", buff);
 		s->ck_a = 0;
 		s->ck_b = 0;
 		s->state ++;
 		break;
 	case GOT_SYNC2:
-//		if (s->msg_available) {
-//			/* Previous message has not yet been parsed: discard this one */
-//			s->error_last = GPS_UBX_ERR_OVERRUN;
-//			goto error;
-//			printf ("Error");
-//		}
-		//s->msg_class = c;
-		//printf("Dummy \n");
+		//s->msg_class = buff;
 		s->state++;
 		break;
 	case GOT_CLASS:
 		s->msg_type = buff;
-		printf( "Read msg type: 0x%x \n", s->msg_type);
 		s->state++;
 		break;
 	case GOT_ID:
-		s->len = buff;
+		s->msg_len = buff;
 		s->state++;
 		break;
 	case GOT_LEN1:
-		s->len |= (buff << 8);
-		if (s->len > GPS_UBX_MAX_PAYLOAD) {
+		s->msg_len |= (buff << 8);
+		if (s->msg_len > GPS_UBX_MAX_PAYLOAD) {
 			s->error_last = GPS_UBX_ERR_MSG_TOO_LONG;
 			goto error;
 		}
-		//printf("Len %i\n",s->len);
-		s->msg_idx = 0;
+		s->n_read = 0;
 		s->state++;
 		break;
 	case GOT_LEN2:
-		s->msg_buff[s->msg_idx] = buff;
-		s->msg_idx++;
-		//printf ("msg_index: %i \n",s->msg_idx);
-		if (s->msg_idx >= s->len) {
+		s->msg_buff[s->n_read] = buff;
+		s->n_read++;
+		if (s->n_read >= s->msg_len) {
 			s->state++;
 		}
 		break;
@@ -459,8 +452,6 @@ s8 ubx_process (msg_state_t *s, unsigned char buff)
 			s->error_last = GPS_UBX_ERR_CHECKSUM;
 			goto error;
 		}
-		s->msg_available = true;
-		//printf("msg_availabel %i \n", (int)(s->msg_available));
 		s->msg_class = NO_CLASS;
 		s->n_read = 0;
 		s->state = UNINIT;
