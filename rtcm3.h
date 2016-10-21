@@ -68,6 +68,34 @@
 #define UBX_NAV_SVIN_Active(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+37))
 #define UBX_NAV_SVIN_RES4(_ubx_payload) (uint16_t)(*((uint8_t*)_ubx_payload+38)|*((uint8_t*)_ubx_payload+1+38)<<8)
 
+#define UBX_CFG_ID 0x06
+#define UBX_CFG_TMODE3_ID 0x71
+#define UBX_CFG_TMODE3_version(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+0))
+#define UBX_CFG_TMODE3_RES1(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+1))
+#define UBX_CFG_TMODE3_flags(_ubx_payload) (uint16_t)(*((uint8_t*)_ubx_payload+2)|*((uint8_t*)_ubx_payload+1+2)<<8)
+#define UBX_CFG_TMODE3_EcecfXOrLat(_ubx_payload) (int32_t)(*((uint8_t*)_ubx_payload+4)|*((uint8_t*)_ubx_payload+1+4)<<8|((int32_t)*((uint8_t*)_ubx_payload+2+4))<<16|((int32_t)*((uint8_t*)_ubx_payload+3+4))<<24)
+#define UBX_CFG_TMODE3_EcecfYOrLon(_ubx_payload) (int32_t)(*((uint8_t*)_ubx_payload+8)|*((uint8_t*)_ubx_payload+1+8)<<8|((int32_t)*((uint8_t*)_ubx_payload+2+8))<<16|((int32_t)*((uint8_t*)_ubx_payload+3+8))<<24)
+#define UBX_CFG_TMODE3_EcecfZOrAlt(_ubx_payload) (int32_t)(*((uint8_t*)_ubx_payload+12)|*((uint8_t*)_ubx_payload+1+12)<<8|((int32_t)*((uint8_t*)_ubx_payload+2+12))<<16|((int32_t)*((uint8_t*)_ubx_payload+3+12))<<24)
+#define UBX_CFG_TMODE3_EcecfXOrLatHP(_ubx_payload) (int8_t)(*((uint8_t*)_ubx_payload+16))
+#define UBX_CFG_TMODE3_EcecfYOrLonHP(_ubx_payload) (int8_t)(*((uint8_t*)_ubx_payload+17))
+#define UBX_CFG_TMODE3_EcecfZOrAltHP(_ubx_payload) (int8_t)(*((uint8_t*)_ubx_payload+18))
+#define UBX_CFG_TMODE3_RES2(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+19))
+#define UBX_CFG_TMODE3_FixedPosACC(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+20)|*((uint8_t*)_ubx_payload+1+20)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+20))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+20))<<24)
+#define UBX_CFG_TMODE3_SvinMinDur(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+24)|*((uint8_t*)_ubx_payload+1+24)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+24))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+24))<<24)
+#define UBX_CFG_TMODE3_SvinAcclimit(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+28)|*((uint8_t*)_ubx_payload+1+28)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+28))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+28))<<24)
+#define UBX_CFG_TMODE3_RES3(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+32)|*((uint8_t*)_ubx_payload+1+32)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+32))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+32))<<24)
+#define UBX_CFG_TMODE3_RES4(_ubx_payload) (uint32_t)(*((uint8_t*)_ubx_payload+36)|*((uint8_t*)_ubx_payload+1+36)<<8|((uint32_t)*((uint8_t*)_ubx_payload+2+36))<<16|((uint32_t)*((uint8_t*)_ubx_payload+3+36))<<24)
+
+#define UBX_ACK_ID 0x05
+
+#define UBX_ACK_ACK_ID 0x01
+#define UBX_ACK_ACK_ClsID(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+0))
+#define UBX_ACK_ACK_MsgID(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+1))
+
+#define UBX_ACK_NAK_ID 0x00
+#define UBX_ACK_NAK_ClsID(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+0))
+#define UBX_ACK_NAK_MsgID(_ubx_payload) (uint8_t)(*((uint8_t*)_ubx_payload+1))
+
 
 #include <errno.h>
 #include "common.h"
@@ -90,30 +118,29 @@
 
 /** RTCM3 callback function prototype definition. */
 
-typedef void (*rtcm3_msg_callback_t)( u8 len, u8 msg[]);
+typedef void (*msg_callback_t)( u8 len, u8 msg[]);
 
 /** RTCM3 callback node.
  * Forms a linked list of callbacks.
  * \note Must be statically allocated for use with rtcm3_register_callback().
  */
-typedef struct rtcm3_msg_callbacks_node {
-  u16 msg_type;                        /**< Message ID associated with callback. */
-  rtcm3_msg_callback_t cb;               /**< Pointer to callback function. */
-  //void *context;                       /**< Pointer to a context */
-  struct rtcm3_msg_callbacks_node *next; /**< Pointer to next node in list. */
-} rtcm3_msg_callbacks_node_t;
+typedef struct msg_callbacks_node {
+  u16 msg_type;                        	/**< Message ID associated with callback. */
+  msg_callback_t cb;               		/**< Pointer to callback function. */
+  struct msg_callbacks_node *next; 		/**< Pointer to next node in list. */
+} msg_callbacks_node_t;
 
 /* structure for processing RTCM and UBX messages */
 typedef struct {
-	// For RTCM processing
 	u8 state;
 	u16 msg_type;
 	u8 msg_class;
+	u8 ubx_msg_class;
 	u16 crc;
 	u16 msg_len;
 	u8 n_read;
 	u8 msg_buff[1024+6+1];
-	rtcm3_msg_callbacks_node_t* rtcm3_msg_callbacks_head;
+	msg_callbacks_node_t* msg_callbacks_head;
 	u8 status;
 	u8 ck_a, ck_b;
 	u8 error_cnt;
@@ -123,9 +150,9 @@ typedef struct {
 
 /* Function prototypes */
 
-s8                          rtcm3_register_callback(msg_state_t* s, u16 msg_type, rtcm3_msg_callback_t cb, rtcm3_msg_callbacks_node_t *node);
-void                        rtcm3_clear_callbacks(msg_state_t* s);
-rtcm3_msg_callbacks_node_t* rtcm3_find_callback(msg_state_t* s, u16 msg_type);
+s8                          register_callback(msg_state_t* s, u16 msg_type, msg_callback_t cb, msg_callbacks_node_t *node);
+void                        clear_callbacks(msg_state_t* s);
+msg_callbacks_node_t* 		find_callback(msg_state_t* s, u16 msg_type);
 void                        msg_state_init(msg_state_t *s);
 
 s8                          rtcm3_process(msg_state_t *s, unsigned char buff);
@@ -133,6 +160,16 @@ s8 							ubx_process (msg_state_t *s, unsigned char buff);
 unsigned int                RTCMgetbitu(unsigned char *, int, int);
 int                         RTCMgetbits(unsigned char *, int , int );
 static double               RTCMgetbits_38(unsigned char *, int );
+
+inline void   		        UbxSend_CFG_TMODE3(uint8_t ubx_version, uint8_t ubx_res1, uint16_t ubx_flags, int32_t ubx_ececfxorlat, int32_t ubx_ececfyorlon, int32_t ubx_ececfzoralt, int8_t ubx_ececfxorlathp, int8_t ubx_ececfyorlonhp, int8_t ubx_ececfzoralthp, uint8_t ubx_res2, uint32_t ubx_fixedposacc, uint32_t ubx_svinmindur, uint32_t ubx_svinacclimit, uint32_t ubx_res3, uint32_t ubx_res4);
+static inline void          UbxSend_CFG_MSG(uint8_t ubx_class, uint8_t ubx_msgid, uint8_t ubx_rate);
+void                        ubx_header(uint8_t nav_id, uint8_t msg_id, uint16_t len);
+void 						ubx_send_bytes(uint8_t len, uint8_t *bytes);
+void 				        ubx_send_1byte(uint8_t byte);
+void 						ubx_trailer(void);
+
+
+uint8_t  					uart_write(uint8_t *buff);
 
 
 /* Global variables used for RTCM processing */
@@ -142,6 +179,11 @@ int byteIndex       = 0;
 int checksumCounter = 0;
 int rawIndex        = 0;
 
+int bw 				= 0;
+/* For sending ubx msg to ground station gps */
+uint8_t send_ck_a, send_ck_b;
+
+
 /** Register a callback for a message type.
  * Register a callback that is called when a message
  * with type msg_type is received.
@@ -149,12 +191,12 @@ int rawIndex        = 0;
  * \param msg_type Message type associated with callback
  * \param cb       Pointer to message callback function
  * \param context  Pointer to context for callback function
- * \param node     Statically allocated #rtcm3_msg_callbacks_node_t struct
+ * \param node     Statically allocated #msg_callbacks_node_t struct
  * \return `RTCM_OK` (0) if successful, `RTCM_CALLBACK_ERROR` if callback was
  *         already registered for that message type.
  */
-s8 rtcm3_register_callback(msg_state_t *s, u16 msg_type, rtcm3_msg_callback_t cb,
-                         rtcm3_msg_callbacks_node_t *node)
+s8 register_callback(msg_state_t *s, u16 msg_type, msg_callback_t cb,
+                         msg_callbacks_node_t *node)
 {
   /* Check our callback function pointer isn't NULL. */
   if (cb == 0)
@@ -165,7 +207,7 @@ s8 rtcm3_register_callback(msg_state_t *s, u16 msg_type, rtcm3_msg_callback_t cb
     return RTCM_NULL_ERROR;
 
   /* Check if callback was already registered for this type. */
-  if (rtcm3_find_callback(s, msg_type) != 0)
+  if (find_callback(s, msg_type) != 0)
     return RTCM_CALLBACK_ERROR;
 
   /* Fill in our new rtcm3_msg_callback_node_t. */
@@ -180,15 +222,15 @@ s8 rtcm3_register_callback(msg_state_t *s, u16 msg_type, rtcm3_msg_callback_t cb
   /* If our linked list is empty then just
    * add the new node to the start.
    */
-  if (s->rtcm3_msg_callbacks_head == 0) {
-    s->rtcm3_msg_callbacks_head = node;
+  if (s->msg_callbacks_head == 0) {
+    s->msg_callbacks_head = node;
     return RTCM_OK;
   }
 
   /* Find the tail of our linked list and
    * add our new node to the end.
    */
-  rtcm3_msg_callbacks_node_t *p = s->rtcm3_msg_callbacks_head;
+  msg_callbacks_node_t *p = s->msg_callbacks_head;
   while (p->next)
     p = p->next;
 
@@ -200,10 +242,10 @@ s8 rtcm3_register_callback(msg_state_t *s, u16 msg_type, rtcm3_msg_callback_t cb
 /** Clear all registered callbacks.
  * This is probably only useful for testing but who knows!
  */
-void rtcm3_clear_callbacks(msg_state_t *s)
+void clear_callbacks(msg_state_t *s)
 {
   /* Reset the head of the callbacks list to NULL. */
-  s->rtcm3_msg_callbacks_head = 0;
+  s->msg_callbacks_head = 0;
 }
 
 /** Find the callback function associated with a message type.
@@ -211,20 +253,20 @@ void rtcm3_clear_callbacks(msg_state_t *s)
  * associated with the passed message type.
  *
  * \param msg_type Message type to find callback for
- * \return Pointer to callback node (#rtcm3_msg_callbacks_node_t) or `NULL` if
+ * \return Pointer to callback node (#msg_callbacks_node_t) or `NULL` if
  *         callback not found for that message type.
  */
-rtcm3_msg_callbacks_node_t* rtcm3_find_callback(msg_state_t *s, u16 msg_type)
+msg_callbacks_node_t* find_callback(msg_state_t *s, u16 msg_type)
 {
   /* If our list is empty, return NULL. */
-  if (!s->rtcm3_msg_callbacks_head)
+  if (!s->msg_callbacks_head)
     return 0;
 
   /* Traverse the linked list and return the callback
    * function pointer if we find a node with a matching
    * message id.
    */
-  rtcm3_msg_callbacks_node_t *p = s->rtcm3_msg_callbacks_head;
+  msg_callbacks_node_t *p = s->msg_callbacks_head;
   do
     if (p->msg_type == msg_type)
       return p;
@@ -251,7 +293,7 @@ void msg_state_init(msg_state_t *s)
   // s->io_context = 0;
 
   /* Clear the callbacks, if any, currently in s */
-  rtcm3_clear_callbacks(s);
+  clear_callbacks(s);
 }
 
 
@@ -305,7 +347,7 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 	if(s->n_read == fakeMsgLen)
 	{
 		s->n_read = 0;
-		rtcm3_msg_callbacks_node_t* node = rtcm3_find_callback(s, RTCM3_MSG_1077);
+		msg_callbacks_node_t* node = find_callback(s, RTCM3_MSG_1077);
 		(*node->cb)(s->sender_id, fakeMsgLen, buff, node->context);
 		return RTCM_OK_CALLBACK_EXECUTED;
 	}else{
@@ -370,7 +412,7 @@ s8 rtcm3_process(msg_state_t *s, unsigned char buff)
 			return RTCM_OK_CALLBACK_EXECUTED;
 #else
 			/* Message complete, process its callback. */
-			rtcm3_msg_callbacks_node_t* node = rtcm3_find_callback(s, s->msg_type);
+			msg_callbacks_node_t* node = find_callback(s, s->msg_type);
 			if (node) {
 				(*node->cb)( s->msg_len, s->msg_buff);
 				return RTCM_OK_CALLBACK_EXECUTED;
@@ -413,7 +455,10 @@ s8 ubx_process (msg_state_t *s, unsigned char buff)
 		s->state ++;
 		break;
 	case GOT_SYNC2:
-		//s->msg_class = buff;
+		s->ubx_msg_class = buff;
+		if (s->ubx_msg_class == 5){
+		printf("Ubx msg class: 0x%x \n", s->ubx_msg_class);
+		}
 		s->state++;
 		break;
 	case GOT_CLASS:
@@ -459,7 +504,7 @@ s8 ubx_process (msg_state_t *s, unsigned char buff)
 					return RTCM_OK_CALLBACK_EXECUTED;
 #else
 					/* Message complete, process its callback. */
-					rtcm3_msg_callbacks_node_t* node = rtcm3_find_callback(s, s->msg_type);
+					msg_callbacks_node_t* node = find_callback(s, s->msg_type);
 					if (node) {
 						(*node->cb)( s->msg_len, s->msg_buff);
 						return RTCM_OK_CALLBACK_EXECUTED;
@@ -500,4 +545,90 @@ static double RTCMgetbits_38(unsigned char *buff, int pos)
 	return (double)RTCMgetbits(buff,pos,32)*64.0+RTCMgetbitu(buff,pos+32,6);
 }
 
+#define UBX_CFG_MSG_ID 0x01
+static inline void UbxSend_CFG_MSG(uint8_t ubx_class, uint8_t ubx_msgid, uint8_t ubx_rate) {
+  ubx_header(UBX_CFG_ID, UBX_CFG_MSG_ID, 3);
+  uint8_t _class = ubx_class;
+  ubx_send_bytes(1, (uint8_t*)&_class);
+  uint8_t _msgid = ubx_msgid;
+  ubx_send_bytes( 1, (uint8_t*)&_msgid);
+  uint8_t _rate = ubx_rate;
+  ubx_send_bytes( 1, (uint8_t*)&_rate);
+  ubx_trailer();
+}
+// Configuring the ground station survery in parameters.
+inline void UbxSend_CFG_TMODE3(uint8_t ubx_version, uint8_t ubx_res1, uint16_t ubx_flags, int32_t ubx_ececfxorlat, int32_t ubx_ececfyorlon, int32_t ubx_ececfzoralt, int8_t ubx_ececfxorlathp, int8_t ubx_ececfyorlonhp, int8_t ubx_ececfzoralthp, uint8_t ubx_res2, uint32_t ubx_fixedposacc, uint32_t ubx_svinmindur, uint32_t ubx_svinacclimit, uint32_t ubx_res3, uint32_t ubx_res4) {
+
+   ubx_header(UBX_CFG_ID, UBX_CFG_TMODE3_ID, 40);
+   uint8_t _version = ubx_version;				ubx_send_bytes(1, (uint8_t*)&_version);
+   uint8_t _res1 = ubx_res1; 					ubx_send_bytes(1, (uint8_t*)&_res1);
+   uint16_t _flags = ubx_flags;					ubx_send_bytes(2, (uint8_t*)&_flags);
+   int32_t _ececfxorlat = ubx_ececfxorlat; 		ubx_send_bytes(4, (uint8_t*)&_ececfxorlat);
+   int32_t _ececfyorlon = ubx_ececfyorlon; 		ubx_send_bytes(4, (uint8_t*)&_ececfyorlon);
+   int32_t _ececfzoralt = ubx_ececfzoralt; 		ubx_send_bytes(4, (uint8_t*)&_ececfzoralt);
+   int8_t _ececfxorlathp = ubx_ececfxorlathp; 	ubx_send_bytes(1, (uint8_t*)&_ececfxorlathp);
+   int8_t _ececfyorlonhp = ubx_ececfyorlonhp; 	ubx_send_bytes(1, (uint8_t*)&_ececfyorlonhp);
+   int8_t _ececfzoralthp = ubx_ececfzoralthp; 	ubx_send_bytes(1, (uint8_t*)&_ececfzoralthp);
+   uint8_t _res2 = ubx_res2; 					ubx_send_bytes(1, (uint8_t*)&_res2);
+   uint32_t _fixedposacc = ubx_fixedposacc; 	ubx_send_bytes(4, (uint8_t*)&_fixedposacc);
+   uint32_t _svinmindur = ubx_svinmindur; 		ubx_send_bytes(4, (uint8_t*)&_svinmindur);
+   uint32_t _svinacclimit = ubx_svinacclimit; 	ubx_send_bytes(4, (uint8_t*)&_svinacclimit);
+   uint32_t _res3 = ubx_res3; 					ubx_send_bytes(4, (uint8_t*)&_res3);
+   uint32_t _res4 = ubx_res4; 					ubx_send_bytes(4, (uint8_t*)&_res4); // 8 seperate bytes
+   ubx_trailer();
+}
+
+void ubx_header(uint8_t nav_id, uint8_t msg_id, uint16_t len) // writes the first six bytes of ubx msg package
+{
+	uint8_t sync1 = UBX_PREAMBLE1;
+	uint8_t sync2 = UBX_PREAMBLE2;
+	uart_write(&sync1);
+	uart_write(&sync2);
+	send_ck_a = 0;
+	send_ck_b = 0;
+	ubx_send_1byte(nav_id);
+	ubx_send_1byte(msg_id);
+	ubx_send_1byte((uint8_t)(len&0xFF));
+	ubx_send_1byte((uint8_t)(len>>8));
+}
+
+void ubx_trailer(void)
+{
+	uart_write(&send_ck_a);
+	uart_write(&send_ck_b);
+}
+
+void ubx_send_1byte(uint8_t byte)
+{
+	uart_write(&byte);
+	send_ck_a = send_ck_a + byte;
+	send_ck_b = send_ck_b + send_ck_a;
+}
+
+void ubx_send_bytes(uint8_t len, uint8_t *bytes)
+{
+	int i;
+	for (i = 0; i < len; i++) {
+		ubx_send_1byte(bytes[i]);
+	}
+}
+
+uint8_t uart_write(uint8_t *p)
+{
+//	printf("Size of the buffer: %i, Buffer content:%0x \n",sizeof(*p),*p);
+//    unsigned char buff1 = *p;
+//    printf("Content in buffer: %0x \n", buff1);
+	int ret = 0;
+	do{
+		ret = write( serial_port->fd, p, 1);
+//		serial_port_flush_output(serial_port->fd);
+	  } while(ret < 1 && errno == EAGAIN); //FIXME: max retry
+
+	if(ret > 0){
+		printf ("Byte content: 0x%X \n", *p);
+		return ret;
+	}
+	else
+		return 0;
+}
 #endif /* LIBRTCM3_RTCM3_H */
