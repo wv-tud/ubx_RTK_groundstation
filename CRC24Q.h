@@ -40,7 +40,8 @@ static const unsigned int tbl_CRC24Q[]={
 * return : crc-24Q parity
 * notes  : see reference [2] A.4.3.3 Parity
 *-----------------------------------------------------------------------------*/
-extern unsigned int crc24q(const unsigned char *buff, int len)
+unsigned int crc24q(const unsigned char *buff, int len);
+unsigned int crc24q(const unsigned char *buff, int len)
 {
     unsigned int crc=0;
     int i;
@@ -49,6 +50,7 @@ extern unsigned int crc24q(const unsigned char *buff, int len)
 }
 
 #ifndef LIBRTCM3_RTCM3_H
+unsigned int RTCMgetbitu(unsigned char *buff, int pos, int lenb);
 unsigned int RTCMgetbitu(unsigned char *buff, int pos, int lenb)
 {
 	unsigned int bits=0;
